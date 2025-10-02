@@ -483,4 +483,29 @@ model group {
 
   @@map("groups")
 }
+model Plan {
+  id         Int      @id @default(autoincrement())
+  name       String
+  type       String   // "group" | "personal"
+  sessions   Int
+  validity   Int
+  price      Float
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  bookings   Booking[]
+}
 
+model Booking {
+  id        Int      @id @default(autoincrement())
+  member    String
+  planName  String
+  type      String   // "group" | "personal"
+  sessions  Int
+  validity  Int
+  status    String   @default("pending") // "pending" | "approved" | "rejected"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  planId    Int
+  plan      Plan     @relation(fields: [planId], references: [id])
+}
