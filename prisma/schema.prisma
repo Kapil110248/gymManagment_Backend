@@ -1,0 +1,486 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model attendance {
+  id       Int               @id @default(autoincrement())
+  memberId Int
+  checkIn  DateTime?
+  checkOut DateTime?
+  date     DateTime
+  status   attendance_status @default(PRESENT)
+  member   member            @relation(fields: [memberId], references: [id], map: "Attendance_memberId_fkey")
+
+  @@index([memberId], map: "Attendance_memberId_fkey")
+}
+
+model branch {
+  id           Int            @id @default(autoincrement())
+  name         String
+  code         String         @unique(map: "Branch_code_key")
+  address      String?
+  status       branch_status  @default(ACTIVE)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime
+  Renamedclass Renamedclass[]
+  member       member[]
+  staff        staff[]
+}
+
+/// This model has been renamed to 'Renamedclass' during introspection, because the original name 'class' is reserved.
+model Renamedclass {
+  id           Int          @id @default(autoincrement())
+  name         String
+  status       class_status @default(ACTIVE)
+  branchId     Int?
+  createdAt    DateTime     @default(now())
+  date         DateTime
+  scheduleDays String       @db.LongText
+  time         DateTime
+  totalSeats   Int
+  updatedAt    DateTime
+  branch       branch?      @relation(fields: [branchId], references: [id], map: "Class_branchId_fkey")
+  session      session[]
+
+  @@index([branchId], map: "Class_branchId_fkey")
+  @@map("class")
+}
+
+model invoice {
+  id            Int            @id @default(autoincrement())
+  status        invoice_status @default(UNPAID)
+  dueDate       DateTime?
+  notes         String?
+  memberId      Int
+  createdAt     DateTime       @default(now())
+  date          DateTime
+  invoiceNumber String         @unique(map: "Invoice_invoiceNumber_key")
+  subtotal      Decimal        @db.Decimal(12, 2)
+  taxAmount     Decimal        @db.Decimal(12, 2)
+  totalAmount   Decimal        @db.Decimal(12, 2)
+  updatedAt     DateTime
+  member        member         @relation(fields: [memberId], references: [id], map: "Invoice_memberId_fkey")
+  invoiceitem   invoiceitem[]
+
+  @@index([memberId], map: "Invoice_memberId_fkey")
+}
+
+model invoiceitem {
+  id          Int     @id @default(autoincrement())
+  description String
+  quantity    Int
+  price       Decimal @db.Decimal(10, 2)
+  taxPercent  Decimal @db.Decimal(5, 2)
+  lineTotal   Decimal @db.Decimal(10, 2)
+  invoiceId   Int
+  invoice     invoice @relation(fields: [invoiceId], references: [id], map: "InvoiceItem_invoiceId_fkey")
+
+  @@index([invoiceId], map: "InvoiceItem_invoiceId_fkey")
+}
+
+model maintenance {
+  id         Int                  @id @default(autoincrement())
+  issueTitle String
+  reportedOn DateTime
+  status     maintenance_status   @default(PENDING)
+  priority   maintenance_priority @default(MEDIUM)
+  assignedTo Int?
+}
+
+model member {
+  id               Int                     @id @default(autoincrement())
+  memberCode       String                  @unique(map: "Member_memberCode_key")
+  firstName        String
+  middleName       String?
+  lastName         String
+  gender           member_gender
+  dob              DateTime?
+  email            String?                 @unique(map: "Member_email_key")
+  phone            String
+  address          String?
+  city             String?
+  state            String?
+  status           member_status           @default(ACTIVE)
+  membershipStatus member_membershipStatus @default(ACTIVATED)
+  weight           Decimal?                @db.Decimal(5, 2)
+  height           Decimal?                @db.Decimal(5, 2)
+  chest            Decimal?                @db.Decimal(5, 2)
+  waist            Decimal?                @db.Decimal(5, 2)
+  arms             Decimal?                @db.Decimal(5, 2)
+  fatPercent       Decimal?                @db.Decimal(5, 2)
+  username         String?                 @unique(map: "Member_username_key")
+  password         String?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime
+  branchId         Int?
+  attendance       attendance[]
+  invoice          invoice[]
+  branch           branch?                 @relation(fields: [branchId], references: [id], map: "Member_branchId_fkey")
+  membership       membership[]
+  payment          payment[]
+
+  @@index([branchId], map: "Member_branchId_fkey")
+}
+
+model membership {
+  id             Int               @id @default(autoincrement())
+  startDate      DateTime
+  endDate        DateTime
+  status         membership_status @default(ACTIVE)
+  memberId       Int
+  planId         Int
+  member         member            @relation(fields: [memberId], references: [id], map: "Membership_memberId_fkey")
+  membershipplan membershipplan    @relation(fields: [planId], references: [id], map: "Membership_planId_fkey")
+
+  @@index([memberId], map: "Membership_memberId_fkey")
+  @@index([planId], map: "Membership_planId_fkey")
+}
+
+model membershipplan {
+  id           Int                   @id @default(autoincrement())
+  name         String
+  description  String?
+  durationDays Int
+  price        Decimal               @db.Decimal(10, 2)
+  features     String?               @db.LongText
+  status       membershipplan_status @default(ACTIVE)
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime
+  membership   membership[]
+}
+
+model notification {
+  id        Int                 @id @default(autoincrement())
+  staffId   Int
+  title     String
+  status    notification_status @default(NEW)
+  createdAt DateTime            @default(now())
+  staff     staff               @relation(fields: [staffId], references: [id], map: "Notification_staffId_fkey")
+
+  @@index([staffId], map: "Notification_staffId_fkey")
+}
+
+model payment {
+  id        Int            @id @default(autoincrement())
+  amount    Decimal        @db.Decimal(10, 2)
+  method    payment_method
+  status    payment_status @default(PENDING)
+  memberId  Int
+  createdAt DateTime       @default(now())
+  invoiceNo String?
+  updatedAt DateTime
+  member    member         @relation(fields: [memberId], references: [id], map: "Payment_memberId_fkey")
+
+  @@index([memberId], map: "Payment_memberId_fkey")
+}
+
+model permission {
+  id             Int              @id @default(autoincrement())
+  name           String           @unique(map: "Permission_name_key")
+  rolepermission rolepermission[]
+}
+
+model role {
+  id             Int              @id @default(autoincrement())
+  name           String           @unique(map: "Role_name_key")
+  description    String?
+  createdAt      DateTime         @default(now())
+  status         role_status      @default(ACTIVE)
+  updatedAt      DateTime
+  rolepermission rolepermission[]
+}
+
+model rolepermission {
+  roleId       Int
+  permissionId Int
+  permission   permission @relation(fields: [permissionId], references: [id], map: "RolePermission_permissionId_fkey")
+  role         role       @relation(fields: [roleId], references: [id], map: "RolePermission_roleId_fkey")
+
+  @@id([roleId, permissionId])
+  @@index([permissionId], map: "RolePermission_permissionId_fkey")
+}
+
+model salaryrecord {
+  id              Int                 @id @default(autoincrement())
+  staffId         Int
+  status          salaryrecord_status @default(GENERATED)
+  createdAt       DateTime            @default(now())
+  commissionTotal Decimal?            @db.Decimal(10, 2)
+  fixedSalary     Decimal?            @db.Decimal(10, 2)
+  hourlyRate      Decimal?            @db.Decimal(10, 2)
+  hoursWorked     Decimal?            @db.Decimal(7, 2)
+  netPay          Decimal?            @db.Decimal(10, 2)
+  periodEnd       DateTime
+  periodStart     DateTime
+  updatedAt       DateTime
+  staff           staff               @relation(fields: [staffId], references: [id], map: "SalaryRecord_staffId_fkey")
+
+  @@index([staffId], map: "SalaryRecord_staffId_fkey")
+}
+
+model session {
+  id           Int            @id @default(autoincrement())
+  classId      Int
+  createdAt    DateTime       @default(now())
+  date         DateTime
+  duration     Int
+  location     String?
+  notes        String?
+  status       session_status @default(SCHEDULED)
+  time         DateTime
+  updatedAt    DateTime
+  Renamedclass Renamedclass   @relation(fields: [classId], references: [id], map: "Session_classId_fkey")
+
+  @@index([classId], map: "Session_classId_fkey")
+}
+
+model shiftallocation {
+  id        Int                       @id @default(autoincrement())
+  staffId   Int
+  shiftType shiftallocation_shiftType
+  createdAt DateTime                  @default(now())
+  date      DateTime
+  endTime   DateTime
+  startTime DateTime
+  updatedAt DateTime
+  staff     staff                     @relation(fields: [staffId], references: [id], map: "ShiftAllocation_staffId_fkey")
+
+  @@index([staffId], map: "ShiftAllocation_staffId_fkey")
+}
+
+model staff {
+  id              Int               @id @default(autoincrement())
+  staffCode       String            @unique(map: "Staff_staffCode_key") 
+  firstName       String            @default("TempFirst")
+  lastName        String            @default("TempLast")
+  gender          staff_gender      @default(MALE)
+  dob             DateTime
+  email           String            @unique(map: "Staff_email_key")
+  phone           String            @unique(map: "Staff_phone_key")
+  profilePhoto    String?
+  role            String
+  status          staff_status      @default(ACTIVE)
+  joinDate        DateTime          @default(now())
+  exitDate        DateTime?
+  salaryType      staff_salaryType  @default(FIXED)
+  fixedSalary     Decimal?          @db.Decimal(10, 2)
+  hourlyRate      Decimal?          @db.Decimal(10, 2)
+  commissionRate  Decimal?          @db.Decimal(5, 2)
+  loginAccess     Boolean           @default(false)
+  username        String?           @unique(map: "Staff_username_key")
+  password        String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  branchId        Int?
+  notification    notification[]
+  salaryrecord    salaryrecord[]
+  shiftallocation shiftallocation[]
+  branch          branch?           @relation(fields: [branchId], references: [id], map: "Staff_branchId_fkey")
+  staffattendance staffattendance[]
+  task            task[]
+
+  @@index([branchId], map: "Staff_branchId_fkey")
+}
+
+
+
+model staffattendance {
+  id       Int                    @id @default(autoincrement())
+  staffId  Int
+  checkIn  DateTime?
+  checkOut DateTime?
+  date     DateTime
+  mode     staffattendance_mode   @default(QR)
+  notes    String?
+  shift    staffattendance_shift  @default(NOSHIFT)
+  status   staffattendance_status @default(PRESENT)
+  staff    staff                  @relation(fields: [staffId], references: [id], map: "StaffAttendance_staffId_fkey")
+
+  @@index([staffId], map: "StaffAttendance_staffId_fkey")
+}
+
+model task {
+  id          Int         @id @default(autoincrement())
+  staffId     Int
+  taskDate    DateTime
+  description String
+  status      task_status @default(PENDING)
+  completedAt DateTime?
+  staff       staff       @relation(fields: [staffId], references: [id], map: "Task_staffId_fkey")
+
+  @@index([staffId], map: "Task_staffId_fkey")
+}
+
+enum invoice_status {
+  DRAFT
+  UNPAID
+  PAID
+  PARTIALLY_PAID
+  VOID
+}
+
+enum class_status {
+  ACTIVE
+  INACTIVE
+  CANCELLED
+}
+
+enum payment_method {
+  CASH
+  CARD
+  UPI
+  NETBANKING
+  RAZORPAY
+  OTHER
+}
+
+enum salaryrecord_status {
+  GENERATED
+  PAID
+  PENDING
+}
+
+enum shiftallocation_shiftType {
+  STRAIGHT
+  BREAK
+}
+
+enum maintenance_status {
+  PENDING
+  INPROGRESS
+  RESOLVED
+}
+
+enum membership_status {
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+  CANCELLED
+}
+
+enum notification_status {
+  NEW
+  READ
+}
+
+enum payment_status {
+  PENDING
+  COMPLETED
+  PARTIAL
+  FAILED
+}
+
+enum branch_status {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+}
+
+enum maintenance_priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum role_status {
+  ACTIVE
+  INACTIVE
+}
+
+enum staff_gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum task_status {
+  PENDING
+  INPROGRESS
+  COMPLETED
+}
+
+enum attendance_status {
+  PRESENT
+  ABSENT
+  LATE
+  ONLEAVE
+}
+
+enum member_gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum staffattendance_mode {
+  QR
+  MANUAL
+  SYSTEM
+}
+
+enum membershipplan_status {
+  ACTIVE
+  INACTIVE
+}
+
+enum session_status {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+enum staffattendance_shift {
+  MORNING
+  EVENING
+  NIGHT
+  NOSHIFT
+}
+
+enum staffattendance_status {
+  PRESENT
+  ABSENT
+  LATE
+  ONLEAVE
+}
+
+enum staff_status {
+  ACTIVE
+  INACTIVE
+  RESIGNED
+  TERMINATED
+}
+
+enum member_status {
+  ACTIVE
+  INACTIVE
+  EXPIRED
+  SUSPENDED
+  CONTINUE
+}
+
+enum member_membershipStatus {
+  ACTIVATED
+  DEACTIVATED
+  PENDING
+}
+
+enum staff_salaryType {
+  FIXED
+  HOURLY
+  COMMISSION
+}
+model group {
+  id        Int      @id @default(autoincrement())
+  name      String
+  photo     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("groups")
+}
+
