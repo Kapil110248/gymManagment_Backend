@@ -11,6 +11,18 @@ export const getBookings = async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to fetch bookings", error: error.message });
   }
 };
+export const getBookingById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const booking = await prisma.booking.findUnique({
+      where: { id: Number(id) },
+    });
+    if (!booking) return res.status(404).json({ success: false, message: "Booking not found" });
+    res.status(200).json({ success: true, booking });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Failed to fetch booking", error: error.message });
+  }
+};
 
 // ✅ Approve booking
 export const approveBooking = async (req, res) => {

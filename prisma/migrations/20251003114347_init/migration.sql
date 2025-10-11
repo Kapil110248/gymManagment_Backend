@@ -16,12 +16,20 @@ CREATE TABLE `branch` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `name` VARCHAR(191) NOT NULL,
     `code` VARCHAR(191) NOT NULL,
-    `address` VARCHAR(191) NULL,
-    `status` ENUM('ACTIVE', 'INACTIVE', 'MAINTENANCE') NOT NULL DEFAULT 'ACTIVE',
+    `address` VARCHAR(191) NOT NULL,
+    `manager` VARCHAR(191) NOT NULL,
+    `phone` VARCHAR(191) NULL,
+    `email` VARCHAR(191) NULL,
+    `username` VARCHAR(191) NOT NULL,
+    `password` VARCHAR(191) NOT NULL,
+    `avatar` VARCHAR(191) NULL,
+    `status` VARCHAR(191) NOT NULL DEFAULT 'Inactive',
+    `hours` JSON NOT NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    UNIQUE INDEX `Branch_code_key`(`code`),
+    UNIQUE INDEX `branch_code_key`(`code`),
+    UNIQUE INDEX `branch_username_key`(`username`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -264,7 +272,7 @@ CREATE TABLE `shiftallocation` (
 -- CreateTable
 CREATE TABLE `staff` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
-    `staffCode` VARCHAR(191) NOT NULL DEFAULT 'TEMP_CODE',
+    `staffCode` VARCHAR(191) NOT NULL,
     `firstName` VARCHAR(191) NOT NULL DEFAULT 'TempFirst',
     `lastName` VARCHAR(191) NOT NULL DEFAULT 'TempLast',
     `gender` ENUM('MALE', 'FEMALE', 'OTHER') NOT NULL DEFAULT 'MALE',
@@ -324,6 +332,48 @@ CREATE TABLE `task` (
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
+-- CreateTable
+CREATE TABLE `groups` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `name` VARCHAR(191) NOT NULL,
+    `photo` VARCHAR(191) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `Plan` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `name` VARCHAR(191) NOT NULL,
+    `type` VARCHAR(191) NOT NULL,
+    `sessions` INTEGER NOT NULL,
+    `validity` INTEGER NOT NULL,
+    `price` DOUBLE NOT NULL,
+    `isActive` BOOLEAN NOT NULL DEFAULT true,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `Booking` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `member` VARCHAR(191) NOT NULL,
+    `planName` VARCHAR(191) NOT NULL,
+    `type` VARCHAR(191) NOT NULL,
+    `sessions` INTEGER NOT NULL,
+    `validity` INTEGER NOT NULL,
+    `status` VARCHAR(191) NOT NULL DEFAULT 'pending',
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+    `planId` INTEGER NOT NULL,
+
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
 -- AddForeignKey
 ALTER TABLE `attendance` ADD CONSTRAINT `Attendance_memberId_fkey` FOREIGN KEY (`memberId`) REFERENCES `member`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
@@ -374,3 +424,6 @@ ALTER TABLE `staffattendance` ADD CONSTRAINT `StaffAttendance_staffId_fkey` FORE
 
 -- AddForeignKey
 ALTER TABLE `task` ADD CONSTRAINT `Task_staffId_fkey` FOREIGN KEY (`staffId`) REFERENCES `staff`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Booking` ADD CONSTRAINT `Booking_planId_fkey` FOREIGN KEY (`planId`) REFERENCES `Plan`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
