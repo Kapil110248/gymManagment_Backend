@@ -2,53 +2,28 @@
 import prisma from "../services/prismaClient.js";
 import bcrypt from "bcrypt";
 
-/** Parse hours which may come as string or object */
-function parseHours(hours) {
-  if (hours === undefined || hours === null || hours === "") return null;
+const SALT_ROUNDS = 10;
+
+// remove password before sending
+const removeSensitive = (obj) => {
+  if (!obj) return obj;
+  const { password, ...safe } = obj;
+  return safe;
+};
+
+const parseHours = (hours) => {
+  if (hours === undefined || hours === null || hours === "") return {};
   if (typeof hours === "object") return hours;
   if (typeof hours === "string") {
-    const trimmed = hours.trim();
-    if (!trimmed) return null;
-    try { return JSON.parse(trimmed); } catch { return null; }
+    try { return JSON.parse(hours.trim()); } catch { return {}; }
   }
-  return null;
-}
-
-/** Normalize body even if middleware didn't populate it */
-function getSafeBody(req) {
-  // If body exists and has keys, use it
-  if (req.body && typeof req.body === "object" && Object.keys(req.body).length) {
-    return req.body;
-  }
-  // Fallback: if multer ran with no fields / wrong content-type, ensure we at least return {}
   return {};
-}
+};
 
-/** Build human-friendly error explaining correct usage */
-function bodyMissingError(res, req) {
-  const ct = req.headers["content-type"] || "";
-  return res.status(400).json({
-    success: false,
-    message:
-      "No request body received. Send either multipart/form-data (with fields + optional file 'avatar') or application/json.",
-    hint: {
-      expected: [
-        "multipart/form-data → Body: form-data fields name, code, username, password, status, hours; File key: avatar (optional)",
-        "application/json → Body: { name, code, username, password, status, hours }"
-      ],
-      receivedContentType: ct
-    }
-  });
-}
-
+// ------------------- CREATE -------------------
 export const createBranch = async (req, res) => {
   try {
-    const body = getSafeBody(req);
-
-    if (!Object.keys(body).length) {
-      return bodyMissingError(res, req);
-    }
-
+    const body = req.body ?? {};
     const {
       name,
       code,
@@ -58,146 +33,157 @@ export const createBranch = async (req, res) => {
       email,
       username,
       password,
-      status = "INACTIVE",
+      status,   // enum: ACTIVE | INACTIVE | MAINTENANCE
       hours
     } = body;
 
-    if (!name || !code || !username || !password) {
+    // required as per schema (non-null fields)
+    if (!name || !code || !address || !manager || !username || !password) {
       return res.status(400).json({
         success: false,
-        message: "name, code, username, password are required"
+        message:
+          "name, code, address, manager, username, password are required"
       });
     }
 
-    const hashed = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
-    const imageUrl = req.file?.path || null; // cloudinary path if file uploaded
-    const hoursJson = parseHours(hours);
+    // file → imageUrl (Cloudinary/Multer)
+    const imageUrl = req.file?.path || null;
 
     const branch = await prisma.branch.create({
       data: {
         name,
         code,
-        address: address ?? "",
-        manager: manager ?? "",
+        address,
+        manager,
         phone: phone ?? null,
         email: email ?? null,
         username,
-        password: hashed,
-        imageUrl,
-        status,          // must match BranchStatus enum values
-        hours: hoursJson // JSON column
+        password: hashedPassword,
+        imageUrl,                         // matches schema
+        status: (status || "INACTIVE"),   // enum CAPS
+        hours: parseHours(hours)          // NOT NULL Json → default {}
       }
     });
 
-    return res.status(201).json({ success: true, data: branch });
-  } catch (err) {
-    if (err.code === "P2002") {
+    return res.status(201).json({ success: true, data: removeSensitive(branch) });
+  } catch (error) {
+    console.error("Error creating branch:", error);
+    if (error.code === "P2002") {
+      const target = Array.isArray(error.meta?.target) ? error.meta.target.join(", ") : error.meta?.target;
       return res.status(409).json({
         success: false,
-        message: `Unique constraint failed on: ${err.meta?.target}`
+        message: `Unique constraint failed on: ${target}`
       });
     }
-    console.error("createBranch error:", err);
-    return res
-      .status(500)
-      .json({ success: false, message: "Failed to create branch", error: err.message });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to create branch",
+      error: error.message
+    });
   }
 };
 
+// ------------------- LIST -------------------
 export const getAllBranches = async (_req, res) => {
   try {
     const rows = await prisma.branch.findMany({ orderBy: { createdAt: "desc" } });
-    return res.json({ success: true, data: rows });
-  } catch (err) {
-    return res
-      .status(500)
-      .json({ success: false, message: "Failed to fetch branches", error: err.message });
+    return res.json({ success: true, data: rows.map(removeSensitive) });
+  } catch (error) {
+    console.error("Error fetching branches:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch branches",
+      error: error.message
+    });
   }
 };
 
+// ------------------- GET BY ID -------------------
 export const getBranchById = async (req, res) => {
   try {
     const id = Number(req.params.id);
     const row = await prisma.branch.findUnique({ where: { id } });
     if (!row) return res.status(404).json({ success: false, message: "Branch not found" });
-    return res.json({ success: true, data: row });
-  } catch (err) {
-    return res
-      .status(500)
-      .json({ success: false, message: "Failed to fetch branch", error: err.message });
+    return res.json({ success: true, data: removeSensitive(row) });
+  } catch (error) {
+    console.error("Error fetching branch:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch branch",
+      error: error.message
+    });
   }
 };
 
+// ------------------- UPDATE -------------------
 export const updateBranch = async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const body = getSafeBody(req);
+    const body = req.body ?? {};
 
-    if (!Object.keys(body).length && !req.file?.path) {
-      return bodyMissingError(res, req);
+    const data = {};
+
+    // only set fields that are present
+    if (body.name !== undefined) data.name = body.name;
+    if (body.code !== undefined) data.code = body.code;
+    if (body.address !== undefined) data.address = body.address; // required in schema, but here optional update
+    if (body.manager !== undefined) data.manager = body.manager; // required in schema, but here optional update
+    if (body.phone !== undefined) data.phone = body.phone ?? null;
+    if (body.email !== undefined) data.email = body.email ?? null;
+    if (body.username !== undefined) data.username = body.username;
+    if (body.status !== undefined) data.status = body.status; // must be valid enum
+    if (body.hours !== undefined) data.hours = parseHours(body.hours);
+
+    if (body.password) {
+      data.password = await bcrypt.hash(body.password, SALT_ROUNDS);
     }
 
-    const {
-      name,
-      code,
-      address,
-      manager,
-      phone,
-      email,
-      username,
-      password,
-      status,
-      hours
-    } = body;
-
-    const data = {
-      ...(name !== undefined && { name }),
-      ...(code !== undefined && { code }),
-      ...(address !== undefined && { address }),
-      ...(manager !== undefined && { manager }),
-      ...(phone !== undefined && { phone }),
-      ...(email !== undefined && { email }),
-      ...(username !== undefined && { username }),
-      ...(status !== undefined && { status })
-    };
-
-    if (password) data.password = await bcrypt.hash(password, 10);
+    // file → imageUrl
     if (req.file?.path) data.imageUrl = req.file.path;
 
-    if (hours !== undefined) {
-      data.hours = parseHours(hours);
-    }
+    const updated = await prisma.branch.update({
+      where: { id },
+      data
+    });
 
-    const updated = await prisma.branch.update({ where: { id }, data });
-    return res.json({ success: true, data: updated });
-  } catch (err) {
-    if (err.code === "P2025") {
+    return res.json({ success: true, data: removeSensitive(updated) });
+  } catch (error) {
+    console.error("Error updating branch:", error);
+    if (error.code === "P2025") {
       return res.status(404).json({ success: false, message: "Branch not found" });
     }
-    if (err.code === "P2002") {
+    if (error.code === "P2002") {
+      const target = Array.isArray(error.meta?.target) ? error.meta.target.join(", ") : error.meta?.target;
       return res.status(409).json({
         success: false,
-        message: `Unique constraint failed on: ${err.meta?.target}`
+        message: `Unique constraint failed on: ${target}`
       });
     }
-    return res
-      .status(500)
-      .json({ success: false, message: "Failed to update branch", error: err.message });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update branch",
+      error: error.message
+    });
   }
 };
 
+// ------------------- DELETE -------------------
 export const deleteBranch = async (req, res) => {
   try {
     const id = Number(req.params.id);
     await prisma.branch.delete({ where: { id } });
-    return res.json({ success: true, message: "Branch deleted" });
-  } catch (err) {
-    if (err.code === "P2025") {
+    return res.json({ success: true, message: "Branch deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting branch:", error);
+    if (error.code === "P2025") {
       return res.status(404).json({ success: false, message: "Branch not found" });
     }
-    return res
-      .status(500)
-      .json({ success: false, message: "Failed to delete branch", error: err.message });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete branch",
+      error: error.message
+    });
   }
 };

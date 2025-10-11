@@ -1,28 +1,16 @@
 import express from "express";
-import { upload } from "../config/cloudinary.js"; 
+import { upload } from "../config/cloudinary.js";
 import {
-  createBranch,
-  getAllBranches,
-  getBranchById,
-  updateBranch,
-  deleteBranch,
-} from "../controllers/branch.controller.js";
+  createStaff,
+  updateStaff,
+} from "../controllers/staff.controller.js";
 
 const router = express.Router();
 
-// POST new branch with image
-router.post("/", upload.single("avatar"), createBranch);
+// ✅ Create staff with optional photo
+router.post("/", upload.single("profilePhoto"), createStaff);
 
-// PUT update branch with image
-router.put("/:id", upload.single("avatar"), updateBranch);
-
-// GET all branches
-router.get("/", getAllBranches);
-
-// GET branch by ID
-router.get("/:id", getBranchById);
-
-// DELETE branch
-router.delete("/:id", deleteBranch);
+// ✅ Update staff with optional photo
+router.put("/:id", upload.single("profilePhoto"), updateStaff);
 
 export default router;
